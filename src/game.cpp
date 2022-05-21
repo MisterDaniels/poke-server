@@ -756,6 +756,12 @@ ReturnValue Game::internalMoveCreature(Creature* creature, Direction direction, 
 	const Position& currentPos = creature->getPosition();
 	Position destPos = getNextPosition(direction, currentPos);
 
+	for (CreatureEvent* moveEvent : creature->getCreatureEvents(CREATURE_EVENT_MOVE)) {
+		if (!moveEvent->executeOnMove(creature, destPos, currentPos)) {
+			return RETURNVALUE_NOTPOSSIBLE;
+		}
+	}
+
 	bool diagonalMovement = (direction & DIRECTION_DIAGONAL_MASK) != 0;
 	if (creature->getPlayer() && !diagonalMovement) {
 		//try go up
@@ -1022,7 +1028,9 @@ void Game::playerMoveItem(Player* player, const Position& fromPos,
 	ReturnValue ret = internalMoveItem(fromCylinder, toCylinder, toIndex, item, count, nullptr, 0, player);
 	if (ret != RETURNVALUE_NOERROR) {
 		player->sendCancelMessage(ret);
-	}
+	} else {
+		g_events->eventPlayerOnItemMoved(player, item, count, fromPos, toPos, fromCylinder, toCylinder);
+ 	}
 }
 
 ReturnValue Game::internalMoveItem(Cylinder* fromCylinder, Cylinder* toCylinder, int32_t index,
@@ -3675,6 +3683,7 @@ void Game::combatGetTypeInfo(CombatType_t combatType, Creature* target, TextColo
 			Item* splash = nullptr;
 			switch (target->getRace()) {
 				case RACE_VENOM:
+				case RACE_GRASS:
 					color = TEXTCOLOR_LIGHTGREEN;
 					effect = CONST_ME_HITBYPOISON;
 					splash = Item::CreateItem(ITEM_SMALLSPLASH, FLUID_GREEN);
@@ -3750,6 +3759,30 @@ void Game::combatGetTypeInfo(CombatType_t combatType, Creature* target, TextColo
 		case COMBAT_LIFEDRAIN: {
 			color = TEXTCOLOR_RED;
 			effect = CONST_ME_MAGIC_RED;
+			break;
+		}
+		case COMBAT_PSYCHICDAMAGE:
+		case COMBAT_NORMALDAMAGE:
+		case COMBAT_WATERDAMAGE:
+		case COMBAT_FLYINGDAMAGE:
+		case COMBAT_POISONDAMAGE:
+		case COMBAT_ELECTRICDAMAGE:
+		case COMBAT_GROUNDDAMAGE:
+		case COMBAT_ROCKDAMAGE:
+		case COMBAT_BUGDAMAGE:
+		case COMBAT_DRAGONDAMAGE:
+		case COMBAT_GHOSTDAMAGE:
+		case COMBAT_DARKDAMAGE:
+		case COMBAT_STEELDAMAGE:
+		case COMBAT_FAIRYDAMAGE:
+		case COMBAT_FIGHTINGDAMAGE: {
+			color = TEXTCOLOR_RED;
+			effect = CONST_ME_NONE;
+			break;
+		}
+		case COMBAT_GRASSDAMAGE: {
+			color = TEXTCOLOR_LIGHTGREEN;
+			effect = CONST_ME_SMALLPLANTS;
 			break;
 		}
 		default: {
@@ -4169,14 +4202,14 @@ void Game::addCreatureHealth(const SpectatorVec& list, const Creature* target)
 	}
 }
 
-void Game::addMagicEffect(const Position& pos, uint8_t effect)
+void Game::addMagicEffect(const Position& pos, uint16_t effect)
 {
 	SpectatorVec list;
 	map.getSpectators(list, pos, true, true);
 	addMagicEffect(list, pos, effect);
 }
 
-void Game::addMagicEffect(const SpectatorVec& list, const Position& pos, uint8_t effect)
+void Game::addMagicEffect(const SpectatorVec& list, const Position& pos, uint16_t effect)
 {
 	for (Creature* spectator : list) {
 		if (Player* tmpPlayer = spectator->getPlayer()) {

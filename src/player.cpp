@@ -1594,6 +1594,12 @@ void Player::addExperience(Creature* source, uint64_t exp, bool sendText/* = fal
 		return;
 	}
 
+	Monster* monster = source ? source->getMonster() : nullptr;
+	if (monster) {
+		double factor = (g_config.getDouble(ConfigManager::MONSTERLEVEL_BONUSEXP) * monster->getLevel());
+		exp += (exp * factor);
+	}
+
 	g_events->eventPlayerOnGainExperience(this, source, exp, rawExp);
 	if (exp == 0) {
 		return;
@@ -2276,6 +2282,7 @@ ReturnValue Player::queryAdd(int32_t index, const Thing& thing, uint32_t count, 
 	if ((slotPosition & SLOTP_HEAD) || (slotPosition & SLOTP_NECKLACE) ||
 	        (slotPosition & SLOTP_BACKPACK) || (slotPosition & SLOTP_ARMOR) ||
 	        (slotPosition & SLOTP_LEGS) || (slotPosition & SLOTP_FEET) ||
+			(slotPosition & SLOTP_ORDER) || (slotPosition & SLOTP_INFO) ||
 	        (slotPosition & SLOTP_RING)) {
 		ret = RETURNVALUE_CANNOTBEDRESSED;
 	} else if (slotPosition & SLOTP_TWO_HAND) {
@@ -2428,6 +2435,20 @@ ReturnValue Player::queryAdd(int32_t index, const Thing& thing, uint32_t count, 
 
 		case CONST_SLOT_AMMO: {
 			if ((slotPosition & SLOTP_AMMO) || g_config.getBoolean(ConfigManager::CLASSIC_EQUIPMENT_SLOTS)) {
+				ret = RETURNVALUE_NOERROR;
+			}
+			break;
+		}
+
+		case CONST_SLOT_ORDER: {
+			if (slotPosition & SLOTP_ORDER) {
+				ret = RETURNVALUE_NOERROR;
+			}
+			break;
+		}
+
+		case CONST_SLOT_INFO: {
+			if (slotPosition & SLOTP_INFO) {
 				ret = RETURNVALUE_NOERROR;
 			}
 			break;
@@ -3079,7 +3100,7 @@ void Player::internalAddThing(uint32_t index, Thing* thing)
 	}
 
 	//index == 0 means we should equip this item at the most appropiate slot (no action required here)
-	if (index > 0 && index < 11) {
+	if (index > 0 && index < 13) {
 		if (inventory[index]) {
 			return;
 		}

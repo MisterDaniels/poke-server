@@ -73,7 +73,7 @@ struct CombatParams {
 	CombatType_t combatType = COMBAT_NONE;
 	CombatOrigin origin = ORIGIN_SPELL;
 
-	uint8_t impactEffect = CONST_ME_NONE;
+	uint16_t impactEffect = CONST_ME_NONE;
 	uint8_t distanceEffect = CONST_ANI_NONE;
 
 	bool blockedByArmor = false;
@@ -312,6 +312,7 @@ class Combat
 
 		static void combatTileEffects(const SpectatorVec& list, Creature* caster, Tile* tile, const CombatParams& params);
 		CombatDamage getCombatDamage(Creature* creature, Creature* target) const;
+		CombatDamage getAdditionalBonusDamage(Creature* caster, CombatDamage* damage) const;
 
 		//configureable
 		CombatParams params;

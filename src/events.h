@@ -46,6 +46,7 @@ class Events
 		int32_t playerOnLookInTrade = -1;
 		int32_t playerOnLookInShop = -1;
 		int32_t playerOnMoveItem = -1;
+		int32_t playerOnItemMoved = -1;
 		int32_t playerOnMoveCreature = -1;
 		int32_t playerOnTurn = -1;
 		int32_t playerOnTradeRequest = -1;
@@ -53,6 +54,9 @@ class Events
 		int32_t playerOnGainExperience = -1;
 		int32_t playerOnLoseExperience = -1;
 		int32_t playerOnGainSkillTries = -1;
+
+		// Monster
+		int32_t monsterOnSpawn = -1;
 	};
 
 	public:
@@ -77,6 +81,7 @@ class Events
 		void eventPlayerOnLookInTrade(Player* player, Player* partner, Item* item, int32_t lookDistance);
 		bool eventPlayerOnLookInShop(Player* player, const ItemType* itemType, uint8_t count);
 		bool eventPlayerOnMoveItem(Player* player, Item* item, uint16_t count, const Position& fromPosition, const Position& toPosition, Cylinder* fromCylinder, Cylinder* toCylinder);
+		void eventPlayerOnItemMoved(Player* player, Item* item, uint16_t count, const Position& fromPosition, const Position& toPosition, Cylinder* fromCylinder, Cylinder* toCylinder);
 		bool eventPlayerOnMoveCreature(Player* player, Creature* creature, const Position& fromPosition, const Position& toPosition);
 		bool eventPlayerOnTurn(Player* player, Direction direction);
 		bool eventPlayerOnTradeRequest(Player* player, Player* target, Item* item);
@@ -84,6 +89,9 @@ class Events
 		void eventPlayerOnGainExperience(Player* player, Creature* source, uint64_t& exp, uint64_t rawExp);
 		void eventPlayerOnLoseExperience(Player* player, uint64_t& exp);
 		void eventPlayerOnGainSkillTries(Player* player, skills_t skill, uint64_t& tries);
+
+		// Monster
+		bool eventMonsterOnSpawn(Monster* monster, const Position& position, bool startup, bool artificial);
 
 	private:
 		LuaScriptInterface scriptInterface;

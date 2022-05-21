@@ -25,6 +25,7 @@
 #include "weapons.h"
 #include "configmanager.h"
 #include "events.h"
+#include "monster.h"
 
 extern Game g_game;
 extern Weapons* g_weapons;
@@ -83,6 +84,19 @@ CombatDamage Combat::getCombatDamage(Creature* creature, Creature* target) const
 	return damage;
 }
 
+CombatDamanage Combat::getAdditionalBonusDamage(Creature* caster, CombatDamage* damage) const
+{
+	Monster* monster = caster ? caster->getMonster() : nullptr;
+	if (monster && damage.primary.value < 0) {
+		double dmgBonus = g_config.getDouble(ConfigManager::MONSTERLEVEL_BONUSDMG);
+		if (dmgBonus > 0) {
+			damage.primary.value += damage.primary.value * (dmgBonus * monster->getLevel());
+			damage.secondary.value += damage.secondary.value * (dmgBonus * monster->getLevel());
+		}
+	}
+	return damage;
+}
+
 void Combat::getCombatArea(const Position& centerPos, const Position& targetPos, const AreaCombat* area, std::forward_list<Tile*>& list)
 {
 	if (targetPos.z >= MAP_MAX_LAYERS) {
@@ -128,6 +142,9 @@ CombatType_t Combat::ConditionToDamageType(ConditionType_t type)
 		case CONDITION_CURSED:
 			return COMBAT_DEATHDAMAGE;
 
+		case CONDITION_SEED:
+			return COMBAT_GRASSDAMAGE;
+
 		default:
 			break;
 	}
@@ -161,6 +178,9 @@ ConditionType_t Combat::DamageToConditionType(CombatType_t type)
 
 		case COMBAT_PHYSICALDAMAGE:
 			return CONDITION_BLEEDING;
+
+		case COMBAT_GRASSDAMAGE:
+			return CONDITION_SEED;
 
 		default:
 			return CONDITION_NONE;
@@ -279,10 +299,6 @@ bool Combat::isProtected(const Player* attacker, const Player* target)
 		return true;
 	}
 
-	if (attacker->getVocationId() == VOCATION_NONE || target->getVocationId() == VOCATION_NONE) {
-		return true;
-	}
-
 	if (attacker->getSkull() == SKULL_BLACK && attacker->getSkullClient(target) == SKULL_NONE) {
 		return true;
 	}
@@ -390,12 +406,12 @@ bool Combat::setParam(CombatParam_t param, uint32_t value)
 		}
 
 		case COMBAT_PARAM_EFFECT: {
-			params.impactEffect = static_cast<uint8_t>(value);
+			params.impactEffect = static_cast<uint32_t>(value);
 			return true;
 		}
 
 		case COMBAT_PARAM_DISTANCEEFFECT: {
-			params.distanceEffect = static_cast<uint8_t>(value);
+			params.distanceEffect = static_cast<uint32_t>(value);
 			return true;
 		}
 
@@ -498,6 +514,8 @@ void Combat::CombatHealthFunc(Creature* caster, Creature* target, const CombatPa
 		}
 	}
 
+	damage = getAdditionalBonusDamage(damage);
+
 	if (g_game.combatChangeHealth(caster, target, damage)) {
 		CombatConditionFunc(caster, target, params, nullptr);
 		CombatDispelFunc(caster, target, params, nullptr);
@@ -513,6 +531,8 @@ void Combat::CombatManaFunc(Creature* caster, Creature* target, const CombatPara
 			damage.primary.value /= 2;
 		}
 	}
+
+	damage = getAdditionalBonusDamage(damage);
 
 	if (g_game.combatChangeMana(caster, target, damage.primary.value, damage.origin)) {
 		CombatConditionFunc(caster, target, params, nullptr);

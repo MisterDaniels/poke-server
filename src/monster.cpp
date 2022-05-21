@@ -22,35 +22,48 @@
 #include "monster.h"
 #include "game.h"
 #include "spells.h"
+#include "configmanager.h"
 
 extern Game g_game;
 extern Monsters g_monsters;
+extern ConfigManager g_config;
 
 int32_t Monster::despawnRange;
 int32_t Monster::despawnRadius;
 
 uint32_t Monster::monsterAutoID = 0x40000000;
 
-Monster* Monster::createMonster(const std::string& name)
+Monster* Monster::createMonster(const std::string& name, uint16_t level, uint16_t boost)
 {
 	MonsterType* mType = g_monsters.getMonsterType(name);
 	if (!mType) {
 		return nullptr;
 	}
-	return new Monster(mType);
+	return new Monster(mType, level, boost);
 }
 
-Monster::Monster(MonsterType* mtype) :
+Monster::Monster(MonsterType* mtype, uint16_t levelToAdd, uint16_t boostToAdd) :
 	Creature(),
 	strDescription(asLowerCaseString(mtype->nameDescription)),
 	mType(mtype)
 {
+	if (levelToAdd == 0) {
+		level = uniform_random(mType->info.minLevel, mType->info.maxLevel);
+		health = mType->info.health + (mType->info.health * (g_config.getDouble(ConfigManager::MONSTERLEVEL_BONUSHEALTH) * level));
+		healthMax = mType->info.healthMax + (mType->info.healthMax * (g_config.getDouble(ConfigManager::MONSTERLEVEL_BONUSHEALTH) * level));
+		baseSpeed = mType->info.baseSpeed + (mType->info.baseSpeed * (g_config.getDouble(ConfigManager::MONSTERLEVEL_BONUSSPEED) * level));
+		boost = 0;
+	} else {
+		health = mType->info.health;
+		healthMax = mType->info.healthMax;
+		baseSpeed = mType->info.baseSpeed;
+		level = levelToAdd;
+		boost = boostToAdd;
+	}
+	
 	defaultOutfit = mType->info.outfit;
 	currentOutfit = mType->info.outfit;
 	skull = mType->info.skull;
-	health = mType->info.health;
-	healthMax = mType->info.healthMax;
-	baseSpeed = mType->info.baseSpeed;
 	internalLight = mType->info.light;
 	hiddenHealth = mType->info.hiddenHealth;
 
@@ -616,6 +629,22 @@ bool Monster::selectTarget(Creature* creature)
 		return false;
 	}
 
+	if (isPassive()) {
+		if (creature->getMaster() && creature->getMaster()->getPlayer()) {
+			if (!hasBeenAttacked(creature->getMaster()->getPlayer()->getID())) {
+				return false;
+			}
+		} else {
+			if(!hasBeenAttacked(creature->getID())) {
+				return false;
+			}
+		}
+	}
+
+	if (creature->getPlayer() && creature->getPlayer()->getSummonCount() > 0) {
+		return false;
+	}
+
 	if (isHostile() || isSummon()) {
 		if (setAttackedCreature(creature) && !isSummon()) {
 			g_dispatcher.addTask(createTask(std::bind(&Game::checkCreatureAttack, &g_game, getID())));
@@ -645,6 +674,9 @@ void Monster::setIdle(bool idle)
 void Monster::updateIdleStatus()
 {
 	bool idle = false;
+	if (hasCondition(CONDITION_MOVING)) {
+		idle = true;
+	}
 
 	if (conditions.empty()) {
 		if (!isSummon() && targetList.empty()) {
@@ -810,6 +842,19 @@ bool Monster::canUseSpell(const Position& pos, const Position& targetPos,
 {
 	inRange = true;
 
+	if (isSummon() && getMaster()->getPlayer() && !sb.isMelee)
+		return false;
+	}
+
+	if (hasCondition(CONDITION_PARALYZE)) {
+		g_game.addMagicEffect(getPosition(), CONST_ME_STUN);
+		return false;
+	}
+
+	if (hasCondition(CONDITION_SLEEP)) {
+		return false;
+	}
+
 	if (sb.isMelee && isFleeing()) {
 		return false;
 	}
@@ -930,7 +975,7 @@ void Monster::onThinkDefense(uint32_t interval)
 				continue;
 			}
 
-			Monster* summon = Monster::createMonster(summonBlock.name);
+			Monster* summon = Monster::createMonster(summonBlock.name, 0, 0);
 			if (summon) {
 				const Position& summonPos = getPosition();
 
@@ -1876,7 +1921,7 @@ void Monster::updateLookDirection()
 void Monster::dropLoot(Container* corpse, Creature*)
 {
 	if (corpse && lootDrop) {
-		mType->createLoot(corpse);
+		mType->createLoot(corpse, g_config.getDouble(ConfigManager::MONSTERLEVEL_BONUSLOOT) * level);
 	}
 }
 
